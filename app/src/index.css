@@ -1,0 +1,117 @@
+@import 'tailwindcss';
+
+/*
+  Design tokens, taken from the original Soweto Network page: white page, grey
+  card, bright orange buttons with dark text, orange monospace prices.
+  Components only use semantic names (bg-canvas, text-ink, ...), so dark mode
+  or a re-brand is a change in this file alone.
+*/
+:root {
+  --canvas: #ffffff;
+  --surface: #f1f1f0;
+  --ink: #222222;
+  --muted: #666666;
+  --line: #e2e2e2;
+  --line-strong: #d4d4d4;
+
+  --brand: #ff8000;
+  --brand-ink: #b84a00;
+  --on-brand: #1a1a1a;
+  --chip: #ffe9d6;
+  --tile-blue: #dbe5f7;
+
+  --ok-ink: #15803d;
+  --ok-fill: #16a34a;
+  --ok-line: #22c55e;
+  --ok-bg: #f0fdf4;
+
+  --bad-bg: #fdeeee;
+  --bad-line: #f5c2c2;
+  --bad-ink: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #121212;
+    --surface: #1e1e1e;
+    --ink: #f0f0ee;
+    --muted: #a3a3a3;
+    --line: #2c2c2c;
+    --line-strong: #3d3d3d;
+
+    --brand-ink: #ff9f43;
+    --chip: #3a2412;
+    --tile-blue: #22304d;
+
+    --ok-ink: #4ade80;
+    --ok-line: #16a34a;
+    --ok-bg: #0b2a17;
+
+    --bad-bg: #3a1414;
+    --bad-line: #6b2222;
+    --bad-ink: #fca5a5;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-on-brand: var(--on-brand);
+  --color-chip: var(--chip);
+  --color-tile-blue: var(--tile-blue);
+  --color-ok-ink: var(--ok-ink);
+  --color-ok-fill: var(--ok-fill);
+  --color-ok-line: var(--ok-line);
+  --color-ok-bg: var(--ok-bg);
+  --color-bad-bg: var(--bad-bg);
+  --color-bad-line: var(--bad-line);
+  --color-bad-ink: var(--bad-ink);
+
+  /* System fonts only: web fonts are blocked before login unless whitelisted. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.16s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pop-in {
+    animation: none;
+  }
+  .animate-spin {
+    animation-duration: 3s;
+  }
+}
