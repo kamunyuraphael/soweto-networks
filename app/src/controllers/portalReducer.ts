@@ -1,3 +1,4 @@
+import type { DeviceRef } from '@/models/device'
 import type { LoginError, LoginMethod } from '@/models/login'
 import type { Package } from '@/models/package'
 import type { FailureReason } from '@/models/payment'
@@ -5,7 +6,7 @@ import type { Session } from '@/models/session'
 
 /** What "Try again" on the failure dialog should do. */
 export type RetryTarget =
-  | { kind: 'pay'; pkg: Package; msisdn: string }
+  | { kind: 'pay'; pkg: Package; msisdn: string; device?: DeviceRef }
   | { kind: 'trial' }
   | { kind: 'activate'; paymentId: string }
 
@@ -18,12 +19,17 @@ export type RetryTarget =
  *     |        ^                          |
  *     |        +------ Try again --------+-> failed
  *     +-> reconnect -> login(method) -> connected
- *     +-> tv
+ *     +-> tvIntro -> tvPickDevice \
+ *                 -> tvManualMac   +-> tvChoosePackage -> paying (device attached) -> ...
+ *
+ * `paying` / `requesting` / `waiting` carry an optional `device`: set when
+ * the customer is buying a plan for a TV or other device added via
+ * "Add a TV or device", rather than for the browsing phone itself.
  */
 export type PortalState =
   | { status: 'idle' }
-  | { status: 'paying'; pkg: Package; phone: string; error: 'invalid_phone' | null }
-  | { status: 'requesting'; pkg: Package; msisdn: string }
+  | { status: 'paying'; pkg: Package; phone: string; error: 'invalid_phone' | null; device?: DeviceRef }
+  | { status: 'requesting'; pkg: Package; msisdn: string; device?: DeviceRef }
   | {
       status: 'waiting'
       step: 'pin' | 'connecting'
@@ -31,16 +37,20 @@ export type PortalState =
       msisdn: string
       paymentId: string
       startedAt: number
+      device?: DeviceRef
     }
   | { status: 'connecting' }
   | { status: 'connected'; session: Session }
   | { status: 'failed'; reason: FailureReason; retry: RetryTarget }
   | { status: 'reconnect' }
   | { status: 'login'; method: LoginMethod; error: LoginError | null; submitting: boolean }
-  | { status: 'tv' }
+  | { status: 'tvIntro' }
+  | { status: 'tvPickDevice' }
+  | { status: 'tvManualMac'; error: 'invalid_mac' | null }
+  | { status: 'tvChoosePackage'; device: DeviceRef }
 
 export type PortalAction =
-  | { type: 'PACKAGE_CHOSEN'; pkg: Package; phone: string }
+  | { type: 'PACKAGE_CHOSEN'; pkg: Package; phone: string; device?: DeviceRef }
   | { type: 'PHONE_INVALID' }
   | { type: 'PAYMENT_REQUESTED'; msisdn: string }
   | { type: 'PROMPT_SENT'; paymentId: string; now: number }
@@ -52,7 +62,11 @@ export type PortalAction =
   | { type: 'LOGIN_METHOD_CHOSEN'; method: LoginMethod }
   | { type: 'LOGIN_SUBMITTING' }
   | { type: 'LOGIN_ERROR'; error: LoginError }
-  | { type: 'TV_OPENED' }
+  | { type: 'TV_INTRO_OPENED' }
+  | { type: 'TV_PICK_OPENED' }
+  | { type: 'TV_MANUAL_OPENED' }
+  | { type: 'MAC_INVALID' }
+  | { type: 'DEVICE_CHOSEN'; device: DeviceRef }
   | { type: 'CLOSED' }
 
 export const initialPortalState: PortalState = { status: 'idle' }
@@ -60,14 +74,14 @@ export const initialPortalState: PortalState = { status: 'idle' }
 export function portalReducer(state: PortalState, action: PortalAction): PortalState {
   switch (action.type) {
     case 'PACKAGE_CHOSEN':
-      return { status: 'paying', pkg: action.pkg, phone: action.phone, error: null }
+      return { status: 'paying', pkg: action.pkg, phone: action.phone, error: null, device: action.device }
 
     case 'PHONE_INVALID':
       return state.status === 'paying' ? { ...state, error: 'invalid_phone' } : state
 
     case 'PAYMENT_REQUESTED':
       return state.status === 'paying'
-        ? { status: 'requesting', pkg: state.pkg, msisdn: action.msisdn }
+        ? { status: 'requesting', pkg: state.pkg, msisdn: action.msisdn, device: state.device }
         : state
 
     case 'PROMPT_SENT':
@@ -80,6 +94,7 @@ export function portalReducer(state: PortalState, action: PortalAction): PortalS
             msisdn: state.msisdn,
             paymentId: action.paymentId,
             startedAt: action.now,
+            device: state.device,
           }
         : state
 
@@ -107,8 +122,20 @@ export function portalReducer(state: PortalState, action: PortalAction): PortalS
     case 'LOGIN_ERROR':
       return state.status === 'login' ? { ...state, submitting: false, error: action.error } : state
 
-    case 'TV_OPENED':
-      return { status: 'tv' }
+    case 'TV_INTRO_OPENED':
+      return { status: 'tvIntro' }
+
+    case 'TV_PICK_OPENED':
+      return { status: 'tvPickDevice' }
+
+    case 'TV_MANUAL_OPENED':
+      return { status: 'tvManualMac', error: null }
+
+    case 'MAC_INVALID':
+      return state.status === 'tvManualMac' ? { ...state, error: 'invalid_mac' } : state
+
+    case 'DEVICE_CHOSEN':
+      return { status: 'tvChoosePackage', device: action.device }
 
     case 'CLOSED':
       return initialPortalState

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useReducer } from 'react'
+import { useCallback, useEffect, useReducer, useState } from 'react'
 import { site } from '@/config/site'
 import { PACKAGES } from '@/models/catalog'
+import type { DeviceRef, NetworkDevice } from '@/models/device'
 import {
   isLoginInputValid,
   normalizeLoginInput,
@@ -10,6 +11,7 @@ import {
 } from '@/models/login'
 import type { Package } from '@/models/package'
 import { formatLocal, normalizeKenyanMsisdn } from '@/lib/phone'
+import { normalizeMac } from '@/lib/mac'
 import { loadSavedMsisdn, saveMsisdn } from '@/lib/storage'
 import { ApiError, type PortalApi } from '@/services/portalApi'
 import { initialPortalState, portalReducer } from './portalReducer'
@@ -37,6 +39,8 @@ function toLoginError(error: unknown): LoginError {
 export function usePortalController(api: PortalApi) {
   const [state, dispatch] = useReducer(portalReducer, initialPortalState)
   const notice = usePortalNotice(api)
+  const [nearbyDevices, setNearbyDevices] = useState<NetworkDevice[] | null>(null)
+  const [devicesLoading, setDevicesLoading] = useState(false)
 
   const finishActivation = useCallback(
     async (paymentId: string) => {
@@ -70,8 +74,8 @@ export function usePortalController(api: PortalApi) {
   const waitingPaymentId = state.status === 'waiting' ? state.paymentId : null
   useEffect(() => {
     if (state.status !== 'waiting' || !waitingPaymentId) return
-    const { paymentId, pkg, msisdn, startedAt } = state
-    const retryPay = { kind: 'pay', pkg, msisdn } as const
+    const { paymentId, pkg, msisdn, startedAt, device } = state
+    const retryPay = { kind: 'pay', pkg, msisdn, device } as const
     let active = true
     let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -103,20 +107,41 @@ export function usePortalController(api: PortalApi) {
     }
   }, [waitingPaymentId, api, finishActivation])
 
-  const choosePackage = useCallback((pkg: Package) => {
-    dispatch({ type: 'PACKAGE_CHOSEN', pkg, phone: savedPhoneForForm() })
+  // Scan for nearby devices only while that dialog is open.
+  useEffect(() => {
+    if (state.status !== 'tvPickDevice') return
+    let active = true
+    setDevicesLoading(true)
+    api
+      .listNearbyDevices()
+      .then((devices) => {
+        if (active) setNearbyDevices(devices)
+      })
+      .catch(() => {
+        if (active) setNearbyDevices([])
+      })
+      .finally(() => {
+        if (active) setDevicesLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [state.status, api])
+
+  const choosePackage = useCallback((pkg: Package, device?: DeviceRef) => {
+    dispatch({ type: 'PACKAGE_CHOSEN', pkg, phone: savedPhoneForForm(), device })
   }, [])
 
   const requestPrompt = useCallback(
-    async (pkg: Package, msisdn: string) => {
+    async (pkg: Package, msisdn: string, device?: DeviceRef) => {
       try {
-        const { paymentId } = await api.requestPayment({ packageId: pkg.id, phone: msisdn })
+        const { paymentId } = await api.requestPayment({ packageId: pkg.id, phone: msisdn, device })
         dispatch({ type: 'PROMPT_SENT', paymentId, now: Date.now() })
       } catch {
         dispatch({
           type: 'FAILED',
           reason: 'prompt_failed',
-          retry: { kind: 'pay', pkg, msisdn },
+          retry: { kind: 'pay', pkg, msisdn, device },
         })
       }
     },
@@ -133,14 +158,14 @@ export function usePortalController(api: PortalApi) {
       }
       saveMsisdn(msisdn)
       dispatch({ type: 'PAYMENT_REQUESTED', msisdn })
-      await requestPrompt(state.pkg, msisdn)
+      await requestPrompt(state.pkg, msisdn, state.device)
     },
     [state, requestPrompt],
   )
 
   const resendPrompt = useCallback(async () => {
     if (state.status !== 'waiting' || state.step !== 'pin') return
-    await requestPrompt(state.pkg, state.msisdn)
+    await requestPrompt(state.pkg, state.msisdn, state.device)
   }, [state, requestPrompt])
 
   const retry = useCallback(() => {
@@ -148,7 +173,12 @@ export function usePortalController(api: PortalApi) {
     const { retry: target } = state
     switch (target.kind) {
       case 'pay':
-        dispatch({ type: 'PACKAGE_CHOSEN', pkg: target.pkg, phone: formatLocal(target.msisdn) })
+        dispatch({
+          type: 'PACKAGE_CHOSEN',
+          pkg: target.pkg,
+          phone: formatLocal(target.msisdn),
+          device: target.device,
+        })
         break
       case 'trial':
         void startTrial()
@@ -184,13 +214,32 @@ export function usePortalController(api: PortalApi) {
     (method: LoginMethod) => dispatch({ type: 'LOGIN_METHOD_CHOSEN', method }),
     [],
   )
-  const openTv = useCallback(() => dispatch({ type: 'TV_OPENED' }), [])
+
+  const openTvIntro = useCallback(() => dispatch({ type: 'TV_INTRO_OPENED' }), [])
+  const openTvPick = useCallback(() => dispatch({ type: 'TV_PICK_OPENED' }), [])
+  const openTvManual = useCallback(() => dispatch({ type: 'TV_MANUAL_OPENED' }), [])
+
+  const chooseDevice = useCallback((device: NetworkDevice) => {
+    dispatch({ type: 'DEVICE_CHOSEN', device: { mac: device.mac, label: device.label } })
+  }, [])
+
+  const submitManualMac = useCallback((raw: string) => {
+    const mac = normalizeMac(raw)
+    if (!mac) {
+      dispatch({ type: 'MAC_INVALID' })
+      return
+    }
+    dispatch({ type: 'DEVICE_CHOSEN', device: { mac, label: 'Your device' } })
+  }, [])
+
   const close = useCallback(() => dispatch({ type: 'CLOSED' }), [])
 
   return {
     state,
     notice,
     packages: PACKAGES,
+    nearbyDevices,
+    devicesLoading,
     actions: {
       choosePackage,
       startTrial,
@@ -200,7 +249,11 @@ export function usePortalController(api: PortalApi) {
       openReconnect,
       chooseLoginMethod,
       submitLogin,
-      openTv,
+      openTvIntro,
+      openTvPick,
+      openTvManual,
+      chooseDevice,
+      submitManualMac,
       close,
     },
   }

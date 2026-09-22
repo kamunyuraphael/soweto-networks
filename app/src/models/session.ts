@@ -4,4 +4,6 @@ export interface Session {
   expiresAt: string
   /** Optional URL the backend wants the customer sent to after login. */
   redirectUrl?: string
+  /** Set when this session belongs to a device added via "Add a TV or device". */
+  deviceLabel?: string
 }

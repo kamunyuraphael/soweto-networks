@@ -1,3 +1,4 @@
+import type { DeviceRef, NetworkDevice } from '@/models/device'
 import type { LoginInput } from '@/models/login'
 import type { PaymentStatus } from '@/models/payment'
 import type { Session } from '@/models/session'
@@ -31,7 +32,7 @@ export function createHttpPortalApi(): PortalApi {
   return {
     getStatus: () => request<PortalStatus>('/api/portal/status'),
     startTrial: () => request<Session>('/api/portal/trial', post()),
-    requestPayment: (input) =>
+    requestPayment: (input: { packageId: string; phone: string; device?: DeviceRef }) =>
       request<{ paymentId: string }>('/api/portal/payments', post(input)),
     getPaymentStatus: async (paymentId) => {
       const res = await request<{ status: PaymentStatus }>(
@@ -42,5 +43,6 @@ export function createHttpPortalApi(): PortalApi {
     activatePackage: (paymentId) =>
       request<Session>(`/api/portal/payments/${encodeURIComponent(paymentId)}/activate`, post()),
     login: (input: LoginInput) => request<Session>('/api/portal/login', post(input)),
+    listNearbyDevices: () => request<NetworkDevice[]>('/api/portal/devices/nearby'),
   }
 }

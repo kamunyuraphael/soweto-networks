@@ -1,4 +1,5 @@
 import { PACKAGES } from '@/models/catalog'
+import type { DeviceRef, NetworkDevice } from '@/models/device'
 import type { PaymentStatus } from '@/models/payment'
 import type { Session } from '@/models/session'
 import { ApiError, type PortalApi } from './portalApi'
@@ -7,6 +8,12 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const minutesFromNow = (m: number) => new Date(Date.now() + m * 60_000).toISOString()
 
 type Outcome = PaymentStatus | 'never'
+
+const NEARBY_DEVICES: NetworkDevice[] = [
+  { id: 'dev-1', label: 'Samsung Smart TV', mac: '3C:5A:B4:11:22:33' },
+  { id: 'dev-2', label: 'Amazon Fire Stick', mac: 'F0:27:2D:AA:BB:CC' },
+  { id: 'dev-3', label: 'Unknown device', mac: '88:66:5A:0F:1E:2D' },
+]
 
 /**
  * Rehearse every screen without a backend.
@@ -30,7 +37,7 @@ function outcomeFor(phone: string): Outcome {
 }
 
 export function createMockPortalApi(): PortalApi {
-  const payments = new Map<string, { packageId: string; phone: string; resolveAt: number }>()
+  const payments = new Map<string, { packageId: string; phone: string; device?: DeviceRef; resolveAt: number }>()
   let counter = 0
   let activationAttempts = 0
 
@@ -48,10 +55,10 @@ export function createMockPortalApi(): PortalApi {
       return { packageName: 'Free trial', expiresAt: minutesFromNow(3) }
     },
 
-    async requestPayment({ packageId, phone }) {
+    async requestPayment({ packageId, phone, device }) {
       await sleep(700)
       const paymentId = `mock-${++counter}`
-      payments.set(paymentId, { packageId, phone, resolveAt: Date.now() + 6000 })
+      payments.set(paymentId, { packageId, phone, device, resolveAt: Date.now() + 6000 })
       return { paymentId }
     },
 
@@ -75,6 +82,7 @@ export function createMockPortalApi(): PortalApi {
       const session: Session = {
         packageName: pkg?.name ?? 'Package',
         expiresAt: minutesFromNow(pkg?.durationMinutes ?? 60),
+        deviceLabel: payment.device?.label,
       }
       return session
     },
@@ -92,6 +100,11 @@ export function createMockPortalApi(): PortalApi {
         packageName: input.method === 'voucher' ? '12 hrs' : '24 HRS',
         expiresAt: minutesFromNow(input.method === 'voucher' ? 12 * 60 : 6 * 60),
       }
+    },
+
+    async listNearbyDevices() {
+      await sleep(1100)
+      return NEARBY_DEVICES
     },
   }
 }

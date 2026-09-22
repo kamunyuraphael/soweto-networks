@@ -1,11 +1,15 @@
 import type { PortalController } from '@/controllers/usePortalController'
+import { formatLocal } from '@/lib/phone'
 import { ConnectedDialog } from './dialogs/ConnectedDialog'
 import { ConnectingDialog } from './dialogs/ConnectingDialog'
 import { FailedDialog } from './dialogs/FailedDialog'
 import { LoginDialog } from './dialogs/LoginDialog'
 import { PaymentDialog } from './dialogs/PaymentDialog'
 import { ReconnectDialog } from './dialogs/ReconnectDialog'
-import { TvSetupDialog } from './dialogs/TvSetupDialog'
+import { TvChoosePackageDialog } from './dialogs/TvChoosePackageDialog'
+import { TvIntroDialog } from './dialogs/TvIntroDialog'
+import { TvManualMacDialog } from './dialogs/TvManualMacDialog'
+import { TvPickDeviceDialog } from './dialogs/TvPickDeviceDialog'
 import { WaitingDialog } from './dialogs/WaitingDialog'
 import { HomePage } from './pages/HomePage'
 
@@ -15,7 +19,7 @@ import { HomePage } from './pages/HomePage'
  * where every flow is a modal over the package grid.
  */
 export function PortalView({ controller }: { controller: PortalController }) {
-  const { state, notice, packages, actions } = controller
+  const { state, notice, packages, nearbyDevices, devicesLoading, actions } = controller
 
   const home = (
     <HomePage
@@ -24,7 +28,7 @@ export function PortalView({ controller }: { controller: PortalController }) {
       onSelectPackage={actions.choosePackage}
       onStartTrial={actions.startTrial}
       onAlreadySubscribed={actions.openReconnect}
-      onSetUpTv={actions.openTv}
+      onOpenTv={actions.openTvIntro}
     />
   )
 
@@ -39,6 +43,7 @@ export function PortalView({ controller }: { controller: PortalController }) {
           <PaymentDialog
             key={state.pkg.id}
             pkg={state.pkg}
+            device={state.device}
             initialPhone={state.phone}
             invalid={state.error === 'invalid_phone'}
             submitting={false}
@@ -55,7 +60,8 @@ export function PortalView({ controller }: { controller: PortalController }) {
           <PaymentDialog
             key={state.pkg.id}
             pkg={state.pkg}
-            initialPhone={state.msisdn}
+            device={state.device}
+            initialPhone={formatLocal(state.msisdn)}
             invalid={false}
             submitting
             onSubmit={actions.submitPayment}
@@ -126,11 +132,52 @@ export function PortalView({ controller }: { controller: PortalController }) {
         </>
       )
 
-    case 'tv':
+    case 'tvIntro':
       return (
         <>
           {home}
-          <TvSetupDialog onClose={actions.close} />
+          <TvIntroDialog onPickNearby={actions.openTvPick} onEnterMac={actions.openTvManual} onClose={actions.close} />
+        </>
+      )
+
+    case 'tvPickDevice':
+      return (
+        <>
+          {home}
+          <TvPickDeviceDialog
+            devices={nearbyDevices}
+            loading={devicesLoading}
+            onChoose={actions.chooseDevice}
+            onBack={actions.openTvIntro}
+            onClose={actions.close}
+          />
+        </>
+      )
+
+    case 'tvManualMac':
+      return (
+        <>
+          {home}
+          <TvManualMacDialog
+            invalid={state.error === 'invalid_mac'}
+            onSubmit={actions.submitManualMac}
+            onBack={actions.openTvIntro}
+            onClose={actions.close}
+          />
+        </>
+      )
+
+    case 'tvChoosePackage':
+      return (
+        <>
+          {home}
+          <TvChoosePackageDialog
+            device={state.device}
+            packages={packages}
+            onSelect={(pkg) => actions.choosePackage(pkg, state.device)}
+            onBack={actions.openTvIntro}
+            onClose={actions.close}
+          />
         </>
       )
   }

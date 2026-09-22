@@ -30,15 +30,16 @@ Data flows one way: `View --actions--> Controller --calls--> Model/services --> 
 ```
 src/
 ├─ config/site.ts
-├─ models/            package.ts  catalog.ts  session.ts  payment.ts  login.ts
+├─ models/            package.ts  catalog.ts  session.ts  payment.ts  login.ts  device.ts
 ├─ services/          portalApi.ts (contract)  httpPortalApi.ts  mockPortalApi.ts  index.ts
-├─ lib/               phone.ts  format.ts  storage.ts
+├─ lib/               phone.ts  format.ts  storage.ts  mac.ts
 ├─ controllers/       portalReducer.ts  usePortalController.ts  usePortalNotice.ts  useElapsedSeconds.ts
 ├─ views/
 │  ├─ PortalView.tsx  (state -> dialog, over HomePage)
 │  ├─ copy.ts         (failure messages)
 │  ├─ pages/          HomePage.tsx
-│  ├─ dialogs/        Payment  Waiting  Connecting  Connected  Failed  Reconnect  Login  TvSetup
+│  ├─ dialogs/        Payment  Waiting  Connecting  Connected  Failed  Reconnect  Login
+│  │                  TvIntro  TvPickDevice  TvManualMac  TvChoosePackage
 │  └─ components/     Button  Modal  Icon  TextField  OptionRow  StepList  PackageGrid
 │                     InstructionsCard  TrialBanner  PageHeader  PhoneLink  StatusBanner  Spinner
 ├─ App.tsx  main.tsx  index.css (design tokens)
@@ -51,8 +52,14 @@ idle -> paying -> requesting -> waiting (pin -> connecting) -> connected
   |        ^                          |
   |        +------ Try again ---------+-> failed
   +-> reconnect -> login(voucher | mpesa | credentials) -> connected
-  +-> tv
+  +-> tvIntro -> tvPickDevice   \
+              -> tvManualMac     +-> tvChoosePackage -> paying (device attached) -> ...
 ```
+
+"Add a TV or device" identifies a device (from a nearby-device scan, or a typed MAC
+address), then feeds it into the normal package-and-payment flow: `paying`, `requesting`
+and `waiting` all carry an optional `device: { mac, label }`, so the payment dialog and
+the final "You are online" screen both show which device the plan is for.
 
 ## Try every screen without a backend
 
@@ -83,12 +90,14 @@ Implemented by `httpPortalApi.ts`:
 |---|---|---|
 | `GET /api/portal/status` | | `{ notice: string \| null }` |
 | `POST /api/portal/trial` | | `Session` |
-| `POST /api/portal/payments` | `{ packageId, phone }` (phone as `2547XXXXXXXX`) | `{ paymentId }` (sends the STK push) |
+| `POST /api/portal/payments` | `{ packageId, phone, device? }` (phone as `2547XXXXXXXX`; `device` is `{ mac, label }` when paying for a TV or other device) | `{ paymentId }` (sends the STK push) |
 | `GET /api/portal/payments/:id` | | `{ status: 'pending' \| 'success' \| 'cancelled' \| 'wrong_pin' \| 'insufficient_funds' \| 'failed' }` |
 | `POST /api/portal/payments/:id/activate` | | `Session` (logs the device into the hotspot) |
 | `POST /api/portal/login` | `LoginInput` (see `models/login.ts`) | `Session`, or 4xx `{ code: 'not_found' \| 'used_or_expired' \| 'invalid_credentials' }` |
+| `GET /api/portal/devices/nearby` | | `NetworkDevice[]` — other devices currently on this Wi-Fi |
 
-`Session = { packageName, expiresAt (ISO 8601), redirectUrl? }`
+`Session = { packageName, expiresAt (ISO 8601), redirectUrl?, deviceLabel? }`. `deviceLabel`
+is set when the session belongs to a device added via "Add a TV or device".
 
 Notes:
 - The catalog in `models/catalog.ts` is display data. The backend must be the source of truth for prices.
@@ -107,5 +116,8 @@ Notes:
 
 1. Real-device test inside the captive-portal pop-up (Android and iPhone) on the actual hotspot.
 2. Build the backend endpoints above; swap the mock for HTTP.
-3. Build out "Set up a TV or streaming device" (currently a placeholder dialog).
-4. Unit tests for `portalReducer` and `lib/phone.ts` / `models/login.ts` (all pure), then Playwright for the payment and reconnect flows.
+3. Real device identification: `GET /api/portal/devices/nearby` needs to read the router's
+   DHCP lease table or ARP cache to list what's actually on the Wi-Fi (the mock returns a
+   fixed list). Vendor-name lookup from the MAC's OUI prefix is a nice-to-have for `label`.
+4. Unit tests for `portalReducer`, `lib/phone.ts`, `lib/mac.ts` and `models/login.ts` (all
+   pure), then Playwright for the payment, reconnect, and TV-device flows.

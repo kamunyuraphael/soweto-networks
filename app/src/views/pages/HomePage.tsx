@@ -14,7 +14,7 @@ interface HomePageProps {
   onSelectPackage: (pkg: Package) => void
   onStartTrial: () => void
   onAlreadySubscribed: () => void
-  onSetUpTv: () => void
+  onOpenTv: () => void
 }
 
 export function HomePage({
@@ -23,7 +23,7 @@ export function HomePage({
   onSelectPackage,
   onStartTrial,
   onAlreadySubscribed,
-  onSetUpTv,
+  onOpenTv,
 }: HomePageProps) {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pb-10">
@@ -49,7 +49,7 @@ export function HomePage({
 
       <button
         type="button"
-        onClick={onSetUpTv}
+        onClick={onOpenTv}
         className="mt-1 flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-line bg-canvas px-4 py-3 text-left transition-colors active:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-ink"
       >
         <span className="flex items-center gap-3">

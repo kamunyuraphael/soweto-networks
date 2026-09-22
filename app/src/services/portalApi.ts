@@ -1,3 +1,4 @@
+import type { DeviceRef, NetworkDevice } from '@/models/device'
 import type { LoginInput } from '@/models/login'
 import type { PaymentStatus } from '@/models/payment'
 import type { Session } from '@/models/session'
@@ -14,8 +15,12 @@ export interface PortalStatus {
 export interface PortalApi {
   getStatus(): Promise<PortalStatus>
   startTrial(): Promise<Session>
-  /** Sends the M-Pesa prompt (STK push) to the customer's phone. */
-  requestPayment(input: { packageId: string; phone: string }): Promise<{ paymentId: string }>
+  /**
+   * Sends the M-Pesa prompt (STK push) to the customer's phone.
+   * `device` is set when paying for a TV or other device added via
+   * "Add a TV or device", rather than for the browsing phone itself.
+   */
+  requestPayment(input: { packageId: string; phone: string; device?: DeviceRef }): Promise<{ paymentId: string }>
   getPaymentStatus(paymentId: string): Promise<PaymentStatus>
   /** Logs the device into the hotspot once payment succeeded. */
   activatePackage(paymentId: string): Promise<Session>
@@ -24,6 +29,8 @@ export interface PortalApi {
    * Reject with ApiError code 'not_found' | 'used_or_expired' | 'invalid_credentials'.
    */
   login(input: LoginInput): Promise<Session>
+  /** Other devices currently on this Wi-Fi, for "Pick a nearby device". */
+  listNearbyDevices(): Promise<NetworkDevice[]>
 }
 
 export class ApiError extends Error {

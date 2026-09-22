@@ -15,6 +15,7 @@ export function ConnectedDialog({ session, onClose }: { session: Session; onClos
         </span>
         <p className="text-muted">
           {session.packageName}
+          {session.deviceLabel && <> · {session.deviceLabel}</>}
           {expiry && <> · ends {expiry}</>}
         </p>
         <Button

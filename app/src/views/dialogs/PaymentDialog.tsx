@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import type { DeviceRef } from '@/models/device'
 import type { Package } from '@/models/package'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
@@ -8,6 +9,7 @@ import { TextField } from '../components/TextField'
 
 interface PaymentDialogProps {
   pkg: Package
+  device?: DeviceRef
   initialPhone: string
   invalid: boolean
   submitting: boolean
@@ -16,7 +18,7 @@ interface PaymentDialogProps {
 }
 
 /** "Complete payment" — matches the original: package summary tile, phone field, Pay now. */
-export function PaymentDialog({ pkg, initialPhone, invalid, submitting, onSubmit, onClose }: PaymentDialogProps) {
+export function PaymentDialog({ pkg, device, initialPhone, invalid, submitting, onSubmit, onClose }: PaymentDialogProps) {
   const [phone, setPhone] = useState(initialPhone)
   const [edited, setEdited] = useState(false)
 
@@ -37,6 +39,7 @@ export function PaymentDialog({ pkg, initialPhone, invalid, submitting, onSubmit
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Selected package</p>
             <p className="truncate font-bold">{pkg.name}</p>
             {pkg.duration && <p className="text-sm text-muted">{pkg.duration}</p>}
+            {device && <p className="text-sm text-muted">for {device.label}</p>}
           </div>
           <div className="shrink-0 text-right">
             <p className="text-xs font-bold uppercase tracking-wide text-muted">Ksh</p>
